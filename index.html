@@ -1,0 +1,439 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Messing with OpenGL & Python</title>
+
+		<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reset.min.css">
+		<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+		<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/theme/league.min.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.6.0/styles/base16/monokai.min.css">
+		<style>
+			.reveal h2 {
+				margin-bottom: 40px;
+			}
+			.reveal h2 img {
+				display: block;
+				margin: 5px auto;
+				height: 100px;
+			}
+
+			.reveal p.remark {
+				font-size: 50%;
+				font-style: italic;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>Messing with <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Opengl-logo.svg/2560px-Opengl-logo.svg.png" alt="OpenGL"> & <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/Python_logo_and_wordmark.svg/2560px-Python_logo_and_wordmark.svg.png" alt="Python"/></h2>
+					<p class="remark">Fun, but definitely not for profit</p>
+					<p>9th September 2022</h5>
+				</section>
+				<section class="left-align">
+					<h2><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Opengl-logo.svg/2560px-Opengl-logo.svg.png" alt="OpenGL"></h2>
+					<ul>
+						<li class="fragment">Graphics API specification for <strong>3D graphics</strong></li>
+						<li class="fragment"><strong>Cross language</strong> and <strong>cross platform</strong></li>
+						<li class="fragment">Platform / hardware vendors provide the <strong>implementations via graphics drivers</strong></li>
+						<li class="fragment"><strong>Old</strong> as the hills (1992)</li>
+						<li class="fragment">Technically obsolete - succeeded by <strong>Vulkan</strong></li>
+					</ul>
+					<aside class="notes">
+					<p>Technically it can handle both 2D and 3D graphics as we'll see. It can also handle non-graphical use cases with the advent of Compute Shaders</p>
+					<p>It may be old, but we're going to learn it anyway. It's actually a super-simple API to get your head around, unlike Volkan, so it's great for hacking out the fundamentals of a 3D engine without tying yourself in knots</p>
+					</aside>
+				</section>
+				<section>
+					<h2>OpenGL is a state machine</h2>
+					<section>
+						<pre class="fragment"><code data-trim data-noescape data-line-numbers="|1-2|4-5" class="language-python">
+							# Bind buffer identified by vbo_id to the array buffer slot
+							GL.glBindBuffer(GL.GL_ARRAY_BUFFER, vbo_id)
+
+							# Operates on the buffer we bound above
+							GL.glBufferData(...)
+						</code></pre>
+					  </section>
+					  <aside class="notes">
+						<p>When working in OpenGL we will come across several <strong>state-changing functions</strong> that change the context and several <strong>state-using functions</strong> that perform some operations based on the current state of OpenGL. As long as you keep in mind that OpenGL is basically one large state machine, most of its functionality will make more sense.
+						</p>
+					  </aside>
+				</section>
+				<section>
+					<h2>OpenGL in Python</h2>
+					<ul>
+						<li><a href="PyOpenGL">PyOpenGL</a> - direct(-ish) OpenGL bindings</li>
+						<li><a href="PyOpenGL">moderngl</a> - more pythonic implementation</li>
+					</ul>
+					<p class="fragment">We're going to use PyOpenGL</p>
+					<p class="fragment remark">...with a bit of pygame thrown in for window management</p>
+					<aside class="notes">
+						<p>We're going to use PyOpenGL because the whole point here is to explore OpenGL's API and moderngl, while it has a much cleaner interface, abstracts too much away</p>
+					</aside>
+				</section>
+				<section>
+					<h2>Our boilerplate</h2>
+					<pre class="fragment"><code data-trim data-noescape data-line-numbers="|1-2|4|5-7|9-17|19|21|22|25-30|32" class="language-python">
+						import pygame as pg
+						from OpenGL import GL
+
+						def create_window(width:int, height:int):
+							pg.init()
+							d = pg.display
+							d.set_mode((width, height), pg.DOUBLEBUF | pg.OPENGL)
+
+							d.gl_set_attribute(pg.GL_CONTEXT_MAJOR_VERSION, 3)
+							d.gl_set_attribute(pg.GL_CONTEXT_MINOR_VERSION, 4)
+							d.gl_set_attribute(
+								pg.GL_CONTEXT_PROFILE_MASK, 
+								pg.GL_CONTEXT_PROFILE_CORE
+							)
+							d.gl_set_attribute(
+								pg.GL_CONTEXT_FORWARD_COMPATIBLE_FLAG, True
+							)
+
+							GL.glViewport(0, 0, width, height)
+
+						def main():
+							create_window(800, 800);
+
+							# Game loop
+							running = True
+							while running:
+								for event in pg.event.get():
+									if event.type == pg.QUIT:
+										running = False
+										continue
+								
+								pg.display.flip()
+
+						if __name__ eq "__main__":
+							main();
+					</code></pre>
+					<aside class="notes">
+						Core mode replaces the old immediate mode - easy to use but slow and inflexible 
+					</aside>
+				</section>
+				<section>
+					<h2>A humble triangle</h2>
+					<div class="r-stack">
+						<img class="fragment" src="images/coords.png">
+						<img class="fragment" src="images/triangle-coords.png">
+						<pre class="fragment"><code data-trim data-noescape data-line-numbers="|3|4|5" class="language-python">
+							# 3 vertices with x, y, z coordinates
+							points = [
+								-0.5, 0.5, 0.0,
+								-0.5, -0.5, 0.0,
+								0.5, -0.5, 0.0,
+							]
+						</code></pre>
+						<aside class="notes">
+							<p>A vertex is a collection of data per 3D coordinate. In this case, just the coordinates, but might also include colours, texture mapping information, and more</p>
+							<p>Note that normally your vertex data uses a much larger coordinate system and it then normalised to this coordinate space as part of the shader pipeline</p>
+						</aside>
+					</div>
+				</section>
+				<section>
+					<h2>But how do we get that data to the GPU?</h2>
+					<h2 class="fragment"><a href="#">Vertex buffers!</a></h2>
+				</section>
+				<section>
+					<div class="r-stack">
+						<pre><code data-trim data-noescape data-line-numbers="|1-2|4-5|7-10|8-9|10" class="language-python">
+							# Create a new buffer object
+							vbo_id = GL.glGenBuffers(1)
+
+							# Bind the buffer to the GL_ARRAY_BUFFER target
+							GL.glBindBuffer(GL.GL_ARRAY_BUFFER, vbo_id)
+
+							# Write the data to the buffer
+							array_type = (GL.GLfloat * len(points))
+							p = array_type(*data)
+							GL.glBufferData(GL.GL_ARRAY_BUFFER, p, GL.GL_STATIC_DRAW)
+						</code></pre>
+				</section>
+				<section>
+					<img src="images/simple-vbo-layout.png">
+				</section>
+				<section>
+					<h2>Okay, so how do we actually render that to the screen?</h2>
+				</section>
+				<section>
+					<h2>Time to learn about <a href="#">shaders</a></h2>
+				</section>
+				<section>
+					<h2>Shader pipeline</h2>
+					<img class="r-stretch" src="images/render-pipeline.png">
+					<aside class="notes">
+						<ol>
+							<li>Vertex shader: processes each vertex, giving you the opportunity to manipulate them (typically applying matrices)</li>
+							<li>Primitive assembly: takes as input all the vertices from the vertex shader that form a primitive and assembles all the point(s) in the primitive shape given; in this case a triangle.</li>
+							<li>Geometry shader: handles one primitive at a time and emits one or more primitives, creating new geometry</li>
+							<li>Rasterization: maps primitives to pixels, resulting in fragments for the fragment shader to use</li>
+							<li>Fragment shader: calculate the final color of a pixel and this is usually the stage where all the advanced OpenGL effects - lighting, shadows, etc. - occur.</li>
+							<li>the final object will then pass through one more stage that we call the alpha test and blending stage</li>
+						</ol>
+						<p>At a minimum, we have to define a vertex and fragment shader in order to be able to see anything</p>
+					</aside>
+				</section>
+				<section>
+					<h2>A simple vertex shader</h2>
+					<pre><code data-trim data-noescape data-line-numbers="|1|3|5-7|6" class="language-glsl">
+						#version 330 core
+
+						in vec3 position;
+						
+						void main() {
+							gl_Position = vec4(position, 1.0);
+						}
+					</code></pre>
+					<aside class="notes">
+						<p>Shaders are written in a C-style domain-specific language called GLSL</p>
+						<p>Start with a version directive = 3.3 core</p>
+						<p>Input attributes declared with the <code>in</code> keyword</p>
+						<p><code>vec3</code> is a vector of 3 floats, which will be our, x, y, z coordinates for each vertex</p>
+						<p>We can name this anything we like</p>
+						<p><code>main</code> function is the entry point, just like C</p>
+						<p><code>gl_Position</code> is a pre-defined variable for setting the vertex coordinates</p>
+						<p>Note that this is a <code>vec4</code> - the 4th float is used for ... things</p>
+						<p>You can have more than one input attribute, and you can output more than one value too to pass extra data onto other shaders</p>
+					</aside>
+				</section>
+				<section>
+					<h2>Compiling our vertex shader</h2>
+					<pre><code data-trim data-noescape data-line-numbers="|1-3|4|5|6|8-14" class="language-python">
+						vertex_shader = """
+							... shader code here ...
+						"""
+						shader_id = GL.glCreateShader(GL.GL_VERTEX_SHADER)
+						GL.glShaderSource(shader_id, vertex_shader)
+						GL.glCompileShader(shader_id)
+
+						# Check for errors
+						log = GL.glGetShaderInfoLog(shader_id)
+						if isinstance(log, bytes):
+							print("Error compiling vertex shader: ")
+							log = log.decode()
+							for line in log.split("\n"):
+								print(line)						
+					</code></pre>
+				</section>
+				<section>
+					<h2>A simple fragment shader</h2>
+					<pre><code data-trim data-noescape data-line-numbers="|1|3|5-7|6" class="language-glsl">
+						#version 330 core
+
+						out vec4 colour;
+						
+						void main() {
+							colour = vec4(1.0, 0.5, 0.2, 1.0);
+						}
+					</code></pre>
+					<aside class="notes">
+						<p>Same version declaration</p>
+						<p>We want one <code>out</code>put variable of type <code>vec4</code> (RGBA) but unlike <code>gl_Position</code> from the vertex shader, we can call it anything we like</code></p>
+						<p>Like most things in OpenGL, colour RGBA components are represented as numbers from 0 to 1</p>
+					</aside>
+				</section>
+				<section>
+					<h2>Compiling our fragment shader</h2>
+					<pre><code data-trim data-noescape data-line-numbers="|4" class="language-python">
+						fragment_shader = """
+							... shader code here ...
+						"""
+						shader_id = GL.glCreateShader(GL.GL_FRAGMENT_SHADER)
+						GL.glShaderSource(shader_id, vertex_shader)
+						GL.glCompileShader(shader_id)
+
+						# Check for errors
+						log = GL.glGetShaderInfoLog(shader_id)
+						if isinstance(log, bytes):
+							print("Error compiling fragment shader: ")
+							log = log.decode()
+							for line in log.split("\n"):
+								print(line)						
+					</code></pre>
+				</section>
+				<section>
+					<h2>We're done, right?</h2>
+					<p class="fragment">Sorry, not quite.</p>
+					<aside class="notes">
+						<p>We need to link the shaders in a pipeline together into a shader program</p>
+					</aside>
+				</section>
+				<section>
+					<h2>We have to create our pipeline</h2>
+					<img class="r-stretch" src="images/render-pipeline.png">
+					<p class="fragment remark">aka a <strong>shader program</strong></p>
+				</section>
+			<section>
+					<h2>Shader program</h2>
+					<pre><code data-trim data-noescape data-line-numbers="|1-2|4-6|8-10|12-14" class="language-python">
+						# Create shader program
+						program_id = GL.glCreateProgram()
+						
+						# Attach our two shaders to it
+						GL.glAttachShader(shader_program_id, vert_shader_id)
+						GL.glAttachShader(shader_program_id, frag_shader_id)
+
+						# Validate and link them together
+						GL.glValidateProgram(shader_program_id)
+						GL.glLinkProgram(shader_program_id)
+
+						# Handle errors
+						# (omitted for brevity, but very similar to shader 
+						# compilation error handling)
+					</code></pre>
+				</section>
+				<section>
+					<h2>Using the shader program</h2>
+					<pre><code data-trim data-noescape class="language-python">
+						GL.glUseProgram(shader_program_id)
+					</code></pre>
+					<aside class="notes">
+						<p>When we want to render using this shader pipeline, we just tell OpenGL we want to use the program</p>
+					</aside>
+				</section>
+				<section>
+					<h2>And now we can finally see some stuff?</h2>
+					<p class="fragment">Ummmm... almost 😳</p>
+					<aside class="notes">
+						<p>We have to tell OpenGL where to find the vertex shader input attributes among the data we sent it</p>
+					</aside>
+				</section>
+				<section>
+					<h2>Vertex Attributes Pointers & VAOs</h2>
+				</section>
+				<section>
+					<img src="images/simple-vbo-layout.png">
+					<pre class="fragment"><code data-trim data-noescape class="language-python">
+						0    | 4    | 8    | 12   | 16   | 20   | 24   | 28    | 32
+						------------------------------------------------------------
+						-0.5 | 0.5  | 0.0  | -0.5 | -0.5 | 0.0  | 0.5  | -0.5  | 0.0
+					</code></pre>
+				</section>
+				<section>
+					<img src="images/simple-vbo-layout-annotated.png">
+					<pre class="fragment"><code data-trim data-noescape class="language-python">
+						# Create VBO that we will store the vertex data in
+						vbo_id = GL.glGenBuffers(1)
+						GL.glBindBuffer(...)
+						GL.glBufferData(...)
+
+						# as 3 consecutive float values (x, y, z)
+						offset = ctypes.c_void_p(0)
+						GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, 0, offset)
+						GL.glEnableVertexAttribArray(0)
+						<aside class="notes">
+							<p>Leaky abstraction showing up - we have to get a C void pointer for the offset</p>
+							<ul>
+								<li>Attribute location (0 for the first one, though you can explicitly assign them in GLSL)</li>
+								<li>Number of values. Must be 1, 2, 3, 4. In this case attribute 0 is our position attr, which is a vec3</li>
+								<li>Data type: we're sending floats, so we need to tell OpenGL</li>
+								<li>Normalise data: not relevant for us</li>
+								<li>stride: how many bytes for a whole vertex. 0 means calculate automatically, which has its limits</li>
+								<li>offset: how many byets into each vertex record is this attribute. 0 for us, but it needs to be a void pointer for... reasons</li>
+							</ul>
+						</aside>
+					</code></pre>
+				</section>
+				<section>
+					<h3>Wrap it all in a vertex array object</h3>
+					<img style="background-color: white" class="fragment" src="images/vertex_array_objects.png">
+					<aside class="notes">
+						<p>VAOs are like a state-setting shortcut. They capture VBO bindings and attribute pointers, so you just need to rebind the VAO to get back to that state, which we need for rendering</p>
+					</aside>
+				</section>
+				<section>
+					<pre><code data-trim data-noescape class="language-python">
+					# Create the vertex array before we 
+					vao_id = GL.glGenVertexArrays(1)
+					GL.glBindVertexArray(vao_id)
+
+					# Create VBO that we will store the vertex data in
+					vbo_id = GL.glGenBuffers(1)
+					GL.glBindBuffer(...)
+					GL.glBufferData(...)
+					GL.glVertexAttribPointer(0, ...)
+					GL.glEnableVertexAttribArray(0)
+					...
+					</code></pre>
+					<pre class="fragment"><code data-trim data-noescape class="language-python">
+					# When we want to render these vertices, just rebind the VAO
+					GL.glBindVertexArray(0)
+					</code></pre>
+				</section>
+				<section>
+					<h3>Time to render something</h3>
+					<img src="images/partyparrt.webp">
+				</section>
+				<section>
+					<pre><code data-trim data-noescape data-line-numbers="|9-11|13-14|16-17|19-20|22-23" class="language-python">
+					# Game loop
+					running = True
+					while running:
+						for event in pg.event.get():
+							if event.type == pg.QUIT:
+								running = False
+								continue
+				
+						# Clear the display buffer
+						GL.glClearColor(0.1, 0.1, 0.1, 1)
+						GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+				
+						# Select desired shader program
+						GL.glUseProgram(shader_program_id)
+				
+						# Rebind the VAO
+						GL.glBindVertexArray(vao_id)
+				
+						# Draw the vertices
+						GL.glDrawArrays(GL.GL_TRIANGLES, 0, vertex_count)
+				
+						# Unbind the VAO
+						GL.glBindVertexArray(0)
+				
+						pg.display.flip()		
+						</code></pre>			
+				</section>
+				<section>
+					<h2>It's... a triangle</h2>
+					<img class="r-stretch" src="images/triangle.png">
+				</section>
+				<section>
+					<h2>Find out more</h2>
+					<ul>
+						<li class="fragment"><a href="https://learnopengl.com/">learnopengl.com</a></li>
+						<li class="fragment"><a href="https://www.youtube.com/playlist?list=PLRIWtICgwaX0u7Rf9zkZhLoLuZVfUksDP">ThinMatrix's OpenGL tutorials on YouTube</a></li>
+						<li class="fragment"><a href="https://antongerdelan.net/opengl/">antongerdelan.net/opengl</a></li>
+						<li class="fragment"><a href="https://thebookofshaders.com/">The Book of Shaders</a></li>
+					</ul>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/zoom/zoom.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes, RevealZoom ]
+			});
+		</script>
+	</body>
+</html>
